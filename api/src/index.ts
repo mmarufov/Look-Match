@@ -32,7 +32,6 @@ app.get("/health", (_req: Request, res: Response) => {
     creds: hasKeyFile ? "file" : process.env.GOOGLE_APPLICATION_CREDENTIALS ? "env" : "none",
   });
 });
-
 // Analyze endpoint: expects multipart/form-data with field name "image"
 app.post(
   "/analyze",
