@@ -1,26 +1,44 @@
 {
   "name": "lookmatch",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Find the exact clothes from any photo using AI-powered image analysis",
+  "private": true,
+  "workspaces": [
+    "api",
+    "web"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd api && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "cd api && npm run build",
+    "build:web": "cd web && npm run build",
+    "start": "concurrently \"npm run start:api\" \"npm run start:web\"",
+    "start:api": "cd api && npm start",
+    "start:web": "cd web && npm start",
+    "install:all": "npm install && cd api && npm install && cd ../web && npm install",
+    "clean": "rm -rf node_modules api/node_modules web/node_modules api/dist web/.next",
+    "lint": "cd web && npm run lint",
+    "test": "echo \"No tests specified yet\""
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ai",
+    "image-analysis",
+    "fashion",
+    "clothing",
+    "google-vision",
+    "nextjs",
+    "express",
+    "typescript"
+  ],
+  "author": "LookMatch Team",
   "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "multer": "^2.0.2"
-  },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/node": "^24.3.0",
-    "nodemon": "^3.1.10",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
