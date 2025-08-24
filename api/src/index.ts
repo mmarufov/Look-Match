@@ -23,7 +23,7 @@ import { BingSource } from './server/sources/bing';
 import { AliExpressSource } from './server/sources/aliexpress';
 import { buildGarmentMask } from './server/vision/garmentMask';
 import { normalizeIlluminationRGB } from './server/vision/illumination';
-import { extractColorFallback } from './server/vision/color';
+import { extractColorFromMask } from './server/vision/color';
 import { inferStyleFallback } from './server/vision/style';
 import { createDebugMaskRouter, storeMask } from './server/routes/debugMask';
 
@@ -192,10 +192,9 @@ async function handleAnalyze(req: Request & { file?: Express.Multer.File }, res:
     const maskRes = await buildGarmentMask(imageBuffer);
     const maskId = requestId;
     try { storeMask(maskId, maskRes.width, maskRes.height, maskRes.mask); } catch {}
-    // Build a tiny 1x1 RGBA buffer from original bytes as placeholder
-    const rgba = new Uint8ClampedArray(maskRes.width * maskRes.height * 4);
-    const normalized = normalizeIlluminationRGB(rgba, maskRes.width, maskRes.height, maskRes.mask);
-    const color = extractColorFallback(normalized, maskRes.width, maskRes.height, maskRes.mask);
+    // Normalize illumination on ROI and extract color from masked pixels
+    const normalized = normalizeIlluminationRGB(maskRes.roiRgba, maskRes.width, maskRes.height, maskRes.mask);
+    const color = extractColorFromMask(normalized, maskRes.width, maskRes.height, maskRes.mask);
     const style = inferStyleFallback(labels, maskRes.mask);
 
     const response: AnalyzeResponse = {

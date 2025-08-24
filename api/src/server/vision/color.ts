@@ -60,4 +60,9 @@ export function extractColorFallback(maskedRgb: Uint8ClampedArray, width: number
   return { base: label, hex, label, confidence: 0.6 };
 }
 
+// Optimized color extraction using masked ROI from garmentMask
+export function extractColorFromMask(roiRgba: Uint8ClampedArray, width: number, height: number, mask: Uint8Array): ExtractedColor {
+  return extractColorFallback(roiRgba, width, height, mask);
+}
+
 
