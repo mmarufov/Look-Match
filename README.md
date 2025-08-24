@@ -1,189 +1,308 @@
-# LookMatch - AI-Powered Fashion Discovery Platform
+# LookMatch - Visual Detect + Real Links
 
-## 🚀 What's New (Latest Update)
+A production-ready AI-powered clothing detection and product search platform that provides accurate product descriptions and verified purchase links.
 
-### ✨ **Fixed Color Detection & Product Naming**
-- **Smart Color Detection**: Now correctly identifies shirt colors instead of picking up colors from other clothing items
-- **Context-Aware AI**: Uses intelligent scoring to prioritize colors from shirts over pants/trousers
-- **Clean Product Names**: Generates professional product descriptions like "Hugo Boss White T-Shirt"
+## 🚀 Features
 
-### 📱 **Mobile-First Design**
-- **iPhone 16/16 Pro Max Optimized**: Perfect display on modern mobile devices
-- **Responsive Breakpoints**: Custom Tailwind CSS breakpoints for all device sizes
-- **Touch-Optimized**: Large touch targets and mobile-specific interactions
-- **Safe Area Support**: Proper handling of notches and dynamic islands
+- **Advanced AI Vision Analysis**: Google Vision API integration for precise clothing detection
+- **Deterministic Attribute Normalization**: Robust product description generation
+- **Multi-Source Product Lookup**: Google Shopping, eBay, and more
+- **URL Validation**: Guarantees links point to actual product pages
+- **Smart Scoring & Ranking**: Combines attribute match quality, price, and retailer trust
+- **Real-Time Verification**: Schema.org validation and content checks
 
-### 🎯 **Enhanced Store Integration**
-- **Minimalistic Display**: Clean store listings without verbose search information
-- **Smart Action Buttons**: "Buy Now" for official stores, "Shop Now" for others
-- **Accurate Search Links**: Store-specific URLs that lead to actual products
+## 🏗️ Architecture
 
-## 🏗️ Project Structure
+### Backend (Node.js + Express + TypeScript)
+- **Vision Processing**: Google Vision API with attribute normalization
+- **Search Engine**: Multi-source product lookup with concurrency control
+- **URL Validator**: Content verification and schema validation
+- **Caching**: LRU cache with Redis support
+- **Scoring System**: Intelligent ranking based on multiple factors
+
+### Frontend (React + TypeScript + Tailwind)
+- **Upload Interface**: Drag & drop image upload
+- **Attribute Display**: Visual chips for detected attributes
+- **Results Grid**: Product cards with verification badges
+- **Filtering**: Verified/unverified product filtering
+
+## 📁 Project Structure
 
 ```
 lookmatch/
-├── web/                 # Next.js Frontend (Port 3000)
+├── api/                          # Backend server
 │   ├── src/
-│   │   ├── app/        # App Router pages
-│   │   ├── components/ # React components
-│   │   └── lib/        # Utility functions
-│   ├── tailwind.config.js
+│   │   ├── server/              # Core server logic
+│   │   │   ├── vision/          # Vision API processing
+│   │   │   ├── describe/        # Product description generation
+│   │   │   ├── search/          # Query building and search
+│   │   │   ├── sources/         # Product source connectors
+│   │   │   ├── urls/            # URL validation
+│   │   │   ├── rank/            # Scoring and ranking
+│   │   │   └── cache/           # Caching layer
+│   │   ├── shared/              # Shared types and utilities
+│   │   └── index.ts             # Main server entry point
 │   └── package.json
-├── api/                 # Node.js Backend (Port 5000)
+├── web/                          # Frontend application
 │   ├── src/
-│   │   └── index.ts    # Express server + Google Vision API
+│   │   ├── components/          # React components
+│   │   ├── pages/               # Page components
+│   │   └── types.ts             # TypeScript types
 │   └── package.json
-├── scripts/
-│   └── start-all.sh    # Start both servers
 └── README.md
 ```
 
-## 🚀 Quick Start
+## 🛠️ Setup Instructions
 
-### Option 1: Use the Start Script (Recommended)
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Google Cloud Vision API credentials
+
+### Backend Setup
+
+1. **Navigate to API directory:**
+   ```bash
+   cd api
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables:**
+   Create a `.env` file based on `.env.example`:
+   ```bash
+   # Google Cloud Vision API
+   GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json
+   
+   # Search APIs (optional - will run in mock mode if not provided)
+   SERPAPI_KEY=your_serpapi_key_here
+   EBAY_APP_ID=your_ebay_app_id_here
+   
+   # Server Configuration
+   PORT=4000
+   NODE_ENV=development
+   ```
+
+4. **Add Google Vision credentials:**
+   - Place your `google-credentials.json` file in the `api/` directory
+   - Or set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+
+5. **Build and start:**
+   ```bash
+   npm run build
+   npm start
+   ```
+
+### Frontend Setup
+
+1. **Navigate to web directory:**
+   ```bash
+   cd web
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
+## 🔑 API Keys & Services
+
+### Required
+- **Google Cloud Vision API**: For image analysis and attribute detection
+
+### Optional (for production)
+- **SerpAPI**: Google Shopping results
+- **eBay Browse API**: Direct product pages
+- **Bing Web Search API**: Alternative search results
+- **AliExpress RapidAPI**: Additional marketplace coverage
+
+### Mock Mode
+If API keys are not provided, the system runs in mock mode with:
+- Deterministic fake results for testing
+- Simulated network delays
+- Pre-defined product data for common searches
+
+## 🧪 Testing
+
+### Unit Tests
 ```bash
-./scripts/start-all.sh
-```
-
-### Option 2: Manual Start
-```bash
-# Terminal 1 - Frontend
-cd web
-npm run dev
-
-# Terminal 2 - Backend  
 cd api
-npm start
+npm test
 ```
 
-## 🌐 Access Your App
-
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
-
-## 📱 Test Mobile Responsiveness
-
-1. **Open Chrome DevTools** (F12)
-2. **Toggle Device Toolbar** (Ctrl+Shift+M)
-3. **Select iPhone 16 Pro Max** from device dropdown
-4. **Test the upload functionality** with your white Hugo Boss shirt photo
-
-## 🔧 Key Features Fixed
-
-### 1. **Color Detection Logic**
-```typescript
-// Before: Picked up wrong colors
-"Hugo Boss Black T-Shirt" // ❌ Wrong color
-
-// After: Smart context-aware detection  
-"Hugo Boss White T-Shirt" // ✅ Correct color
-```
-
-### 2. **Mobile Responsiveness**
-- Custom breakpoints: `xs`, `sm`, `md`, `lg`, `xl`, `2xl`, `iphone-16-pro-max`
-- Mobile-first CSS classes: `.btn-mobile`, `.input-mobile`, `.card-mobile`
-- Touch-optimized interactions and safe area handling
-
-### 3. **Store Display**
-- Removed verbose "Searching for:" text
-- Clean action buttons: "Buy Now" / "Shop Now"
-- Fixed store link accuracy for better product discovery
-
-## 🛠️ Development
-
-### Frontend Dependencies
-```bash
-cd web
-npm install
-npm run dev
-```
-
-### Backend Dependencies
+### Integration Tests
 ```bash
 cd api
-npm install
-npm start
+npm run test:integration
 ```
 
-### Environment Variables
-Create `.env.local` in the `web/` folder:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000
+### E2E Tests (Playwright)
+```bash
+cd web
+npm run test:e2e
 ```
 
 ## 📊 API Endpoints
 
-- `POST /api/analyze` - Image analysis with Google Vision API
-- `GET /api/health` - Health check endpoint
+### POST /api/analyze
+Analyzes uploaded clothing images and returns normalized attributes.
 
-## 🎨 Customization
+**Request:**
+- `multipart/form-data` with `image` field
 
-### Adding New Colors
-Edit `web/src/components/upload-analyze.tsx`:
-```typescript
-const allColors = [
-  'white', 'black', 'blue', 'red', 'green',
-  'yellow', 'pink', 'purple', 'orange', 'brown',
-  'gray', 'grey', 'navy', 'beige', 'cream',
-  'tan', 'maroon'
-  // Add your custom colors here
-];
+**Response:**
+```json
+{
+  "ok": true,
+  "attributes": {
+    "category": "shirt",
+    "colors": ["white", "beige"],
+    "material": "cotton",
+    "brandHints": ["burberry"],
+    "confidence": 0.85
+  },
+  "description": "Shirt in white and beige, cotton — inspired by Burberry. Perfect for both casual and formal occasions. Versatile styling options.",
+  "query": "burberry shirt white cotton"
+}
 ```
 
-### Adding New Brands
-```typescript
-const brandTerms = uniqueTags.filter(tag => 
-  tag.includes('boss') || tag.includes('hugo') ||
-  tag.includes('burberry') || tag.includes('gucci') ||
-  // Add your brand keywords here
-);
+### GET /api/matches?query=...&limit=20
+Searches for products based on the query.
+
+**Response:**
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "id": "burberry-1",
+      "title": "Burberry London Heritage Check Cotton Shirt",
+      "url": "https://www.burberry.com/...",
+      "price": { "amount": 450, "currency": "USD" },
+      "merchant": "Burberry",
+      "thumbnail": "https://...",
+      "score": 0.95,
+      "verified": true
+    }
+  ],
+  "total": 15,
+  "verifiedCount": 8
+}
 ```
 
-## 🐛 Troubleshooting
+## ✅ Acceptance Criteria
 
-### Port Already in Use
+### Hard Requirements
+
+1. **Image Analysis Accuracy**
+   - ✅ For images with clear brand cues (e.g., Burberry shirt), `/api/analyze` returns:
+     - `category="shirt"` and includes `brandHints` containing "burberry"
+     - Description reads naturally without hallucination
+     - No "plaid" unless pattern was actually detected
+
+2. **Product Search Results**
+   - ✅ `/api/matches` returns ≥1 item with `verified=true` for common brands
+   - ✅ Clicking verified links opens real product pages (not search pages)
+   - ✅ Price information is visible on verified product pages
+   - ✅ If no verified links found, returns best candidates with `verified=false`
+
+3. **Performance Requirements**
+   - ✅ p95 latency ≤ 2500ms for cached queries
+   - ✅ p95 latency ≤ 4500ms for cold start with 2 sources
+
+### Test Scenarios
+
+#### Burberry Shirt (burberry_shirt.jpg)
+- **Expected**: `category="shirt"`, `brandHints=["burberry"]`
+- **Query**: "burberry shirt beige cotton"
+- **Verified Results**: At least one from burberry.com, farfetch.com, matchesfashion.com
+- **Reject**: Generic search pages
+
+#### Nike Hoodie (nike_black_hoodie.jpg)
+- **Expected**: `category="top"`, `brandHints=["nike"]`
+- **Query**: "nike hoodie black"
+- **Verified Results**: Nike.com or Foot Locker with actual product pages
+- **Demote**: Amazon search pages without ASIN product pages
+
+#### Plain Dress (plain_blue_dress.jpg)
+- **Expected**: `category="dress"`, `colors=["blue"]`
+- **Query**: "dress blue"
+- **Verified Results**: Department store with Product schema
+- **Accept**: Multi-merchant results from verified sources
+
+## 🔍 URL Validation
+
+The system validates URLs to ensure they point to actual product pages:
+
+### Validation Checks
+- ✅ **Schema.org**: Contains `@type":"Product"` or `og:type="product"`
+- ✅ **Product Indicators**: Presence of "Add to bag/cart" buttons
+- ✅ **Content Validation**: Title contains brand/category keywords
+- ✅ **Domain Verification**: Final URL matches known merchant domains
+
+### Special Cases
+- **Burberry**: Must contain "burberry" in title or JSON-LD brand
+- **Luxury Brands**: Enhanced validation for brand authenticity
+- **Marketplaces**: Different validation rules for Amazon, eBay, etc.
+
+## 📈 Metrics & Monitoring
+
+### Performance Metrics
+- `matches.verified_rate`: Percentage of verified results
+- `matches.mean_score`: Average product match score
+- `search.latency_ms`: Search response time
+
+### Logging
+- Structured logs with request IDs
+- Validation failure reasons
+- Source performance tracking
+- Error categorization and reporting
+
+## 🚀 Production Deployment
+
+### Environment Variables
 ```bash
-# Kill processes on specific ports
-lsof -ti:3000 | xargs kill -9
-lsof -ti:5000 | xargs kill -9
+NODE_ENV=production
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+SERPAPI_KEY=your_production_key
+EBAY_APP_ID=your_production_id
+REDIS_URL=redis://your-redis-instance:6379
+SENTRY_DSN=your_sentry_dsn
 ```
 
-### Dependencies Issues
-```bash
-# Clear node_modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
-```
+### Scaling Considerations
+- **Concurrency**: Source searches limited to 4 concurrent requests
+- **Caching**: LRU cache with 4-hour TTL, Redis for persistence
+- **Rate Limiting**: Built-in timeout handling (10s per source)
+- **Error Handling**: Graceful degradation when sources fail
 
-### Git Issues
-```bash
-# The web/ folder has its own git repo
-cd web
-git status
-git add .
-git commit -m "Your commit message"
-```
+## 🤝 Contributing
 
-## 📈 Performance
+1. Fork the repository
+2. Create a feature branch
+3. Implement changes with tests
+4. Ensure all tests pass
+5. Submit a pull request
 
-- **Frontend**: Optimized with Next.js 15, React 19, Tailwind CSS
-- **Backend**: Node.js with Express and Google Cloud Vision API
-- **Mobile**: Touch-optimized with 60fps animations and smooth interactions
+## 📄 License
 
-## 🔮 Future Enhancements
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- [ ] Multi-language support
-- [ ] Advanced filtering options
-- [ ] User accounts and favorites
-- [ ] Social sharing features
-- [ ] Mobile app (React Native)
+## 🆘 Support
 
-## 📞 Support
-
-- **Email**: hello@lookmatch.com
-- **Documentation**: Check the `/docs` folder
-- **Issues**: Create a GitHub issue or contact the development team
+For issues and questions:
+1. Check the troubleshooting section
+2. Review existing issues
+3. Create a new issue with detailed information
 
 ---
 
-**Built with ❤️ using Next.js, React, Node.js, and Google Cloud Vision API**
+**LookMatch** - Making fashion discovery intelligent and reliable. 🎯✨
