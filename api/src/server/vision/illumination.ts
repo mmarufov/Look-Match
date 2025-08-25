@@ -24,14 +24,19 @@ export function normalizeIlluminationRGB(
   const gMean = gSum / n;
   const bMean = bSum / n;
   const mean = (rMean + gMean + bMean) / 3;
-  const rScale = rMean ? mean / rMean : 1;
-  const gScale = gMean ? mean / gMean : 1;
-  const bScale = bMean ? mean / bMean : 1;
+  // Use single brightness scale to preserve chroma; clamp to reduce whitening
+  const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+  const brightScale = clamp(mean ? 128 / mean : 1, 0.8, 1.2);
   const out = new Uint8ClampedArray(data);
-  for (let i = 0; i < out.length; i += 4) {
-    out[i] = Math.max(0, Math.min(255, Math.round(out[i] * rScale)));
-    out[i + 1] = Math.max(0, Math.min(255, Math.round(out[i + 1] * gScale)));
-    out[i + 2] = Math.max(0, Math.min(255, Math.round(out[i + 2] * bScale)));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (mask[i] < 128) continue; // adjust only masked (garment) pixels
+      const p = i * 4;
+      out[p] = Math.max(0, Math.min(255, Math.round(out[p] * brightScale)));
+      out[p + 1] = Math.max(0, Math.min(255, Math.round(out[p + 1] * brightScale)));
+      out[p + 2] = Math.max(0, Math.min(255, Math.round(out[p + 2] * brightScale)));
+    }
   }
   return out;
 }

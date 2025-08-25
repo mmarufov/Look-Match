@@ -48,9 +48,9 @@ export async function buildGarmentMask(imageBuffer: Buffer, _visionHints?: any):
   const { width = 1, height = 1 } = await img.metadata();
   const rgba = await img.ensureAlpha().raw().toBuffer();
 
-  // Torso ROI (center 60% height, full width)
+  // Torso ROI (upper-mid 50% height, full width) to avoid pants influence
   const y0 = Math.floor(height * 0.2);
-  const y1 = Math.floor(height * 0.8);
+  const y1 = Math.floor(height * 0.7);
   const roi: Rect = { x: 0, y: y0, width, height: y1 - y0 };
 
   // Foreground mask from alpha
@@ -103,12 +103,165 @@ export async function buildGarmentMask(imageBuffer: Buffer, _visionHints?: any):
     }
   }
 
+  // Keep only the largest connected component to isolate the garment region
+  {
+    const w = roi.width, h = roi.height;
+    const visited = new Uint8Array(mask.length);
+    const queue = new Int32Array(w * h);
+    let bestStart = -1;
+    let bestSize = 0;
+    const dirs = [1, -1, w, -w];
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i] === 255 && visited[i] === 0) {
+        let head = 0, tail = 0, size = 0;
+        queue[tail++] = i;
+        visited[i] = 1;
+        while (head < tail) {
+          const idx = queue[head++];
+          size++;
+          const y = Math.floor(idx / w);
+          const x = idx - y * w;
+          // 4-neighborhood
+          const neighbors = [idx + 1, idx - 1, idx + w, idx - w];
+          for (let k = 0; k < 4; k++) {
+            const ni = neighbors[k];
+            if (ni < 0 || ni >= mask.length) continue;
+            const ny = Math.floor(ni / w);
+            const nx = ni - ny * w;
+            if (Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+            if (visited[ni] === 0 && mask[ni] === 255) {
+              visited[ni] = 1;
+              queue[tail++] = ni;
+            }
+          }
+        }
+        if (size > bestSize) {
+          bestSize = size;
+          bestStart = i;
+        }
+      }
+    }
+    if (bestStart >= 0 && bestSize > 50) {
+      // Re-run BFS from bestStart to build the final mask
+      const newMask = new Uint8Array(mask.length);
+      const visited2 = new Uint8Array(mask.length);
+      let head = 0, tail = 0;
+      queue[tail++] = bestStart;
+      visited2[bestStart] = 1;
+      while (head < tail) {
+        const idx = queue[head++];
+        newMask[idx] = 255;
+        const y = Math.floor(idx / w);
+        const x = idx - y * w;
+        const neighbors = [idx + 1, idx - 1, idx + w, idx - w];
+        for (let k = 0; k < 4; k++) {
+          const ni = neighbors[k];
+          if (ni < 0 || ni >= mask.length) continue;
+          const ny = Math.floor(ni / w);
+          const nx = ni - ny * w;
+          if (Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+          if (visited2[ni] === 0 && mask[ni] === 255) {
+            visited2[ni] = 1;
+            queue[tail++] = ni;
+          }
+        }
+      }
+      for (let i = 0; i < mask.length; i++) mask[i] = newMask[i];
+    }
+  }
+
   // Compute masked area percent
   let count = 0;
   for (let i = 0; i < mask.length; i++) if (mask[i] >= 128) count++;
-  const percent = (count / mask.length) * 100;
+  let percent = (count / mask.length) * 100;
 
-  return { roi, width: roi.width, height: roi.height, mask, meta: { method: 'rembg+roi+skin', maskedAreaPercent: percent }, roiRgba };
+  // Fallback: if mask is nearly empty, build a simple saturation-based mask inside ROI
+  if (percent < 1) {
+    for (let y = roi.y; y < roi.y + roi.height; y++) {
+      for (let x = roi.x; x < roi.x + roi.width; x++) {
+        const idx = (y * width + x) * 4;
+        const mi = (y - roi.y) * roi.width + (x - roi.x);
+        const { s, v } = toHSV(rgba[idx], rgba[idx + 1], rgba[idx + 2]);
+        // keep moderately saturated pixels to avoid white bias
+        mask[mi] = (s > 0.22 && v > 0.15) ? 255 : 0;
+      }
+    }
+    // Recompute largest component to denoise
+    {
+      const w = roi.width, h = roi.height;
+      const visited = new Uint8Array(mask.length);
+      const queue = new Int32Array(w * h);
+      let bestStart = -1;
+      let bestSize = 0;
+      for (let i = 0; i < mask.length; i++) {
+        if (mask[i] === 255 && visited[i] === 0) {
+          let head = 0, tail = 0, size = 0;
+          queue[tail++] = i;
+          visited[i] = 1;
+          while (head < tail) {
+            const idx = queue[head++];
+            size++;
+            const y = Math.floor(idx / w);
+            const x = idx - y * w;
+            const neighbors = [idx + 1, idx - 1, idx + w, idx - w];
+            for (let k = 0; k < 4; k++) {
+              const ni = neighbors[k];
+              if (ni < 0 || ni >= mask.length) continue;
+              const ny = Math.floor(ni / w);
+              const nx = ni - ny * w;
+              if (Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+              if (visited[ni] === 0 && mask[ni] === 255) {
+                visited[ni] = 1;
+                queue[tail++] = ni;
+              }
+            }
+          }
+          if (size > bestSize) {
+            bestSize = size;
+            bestStart = i;
+          }
+        }
+      }
+      if (bestStart >= 0 && bestSize > 50) {
+        const newMask = new Uint8Array(mask.length);
+        const visited2 = new Uint8Array(mask.length);
+        let head = 0, tail = 0;
+        queue[tail++] = bestStart;
+        visited2[bestStart] = 1;
+        while (head < tail) {
+          const idx = queue[head++];
+          newMask[idx] = 255;
+          const y = Math.floor(idx / w);
+          const x = idx - y * w;
+          const neighbors = [idx + 1, idx - 1, idx + w, idx - w];
+          for (let k = 0; k < 4; k++) {
+            const ni = neighbors[k];
+            if (ni < 0 || ni >= mask.length) continue;
+            const ny = Math.floor(ni / w);
+            const nx = ni - ny * w;
+            if (Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+            if (visited2[ni] === 0 && mask[ni] === 255) {
+              visited2[ni] = 1;
+              queue[tail++] = ni;
+            }
+          }
+        }
+        for (let i = 0; i < mask.length; i++) mask[i] = newMask[i];
+      }
+    }
+    // Recompute percent
+    count = 0;
+    for (let i = 0; i < mask.length; i++) if (mask[i] >= 128) count++;
+    percent = (count / mask.length) * 100;
+  }
+
+  // Last-resort fallback: if still empty, use entire ROI
+  if (percent < 0.5) {
+    for (let i = 0; i < mask.length; i++) mask[i] = 255;
+    percent = 100;
+  }
+
+  return { roi, width: roi.width, height: roi.height, mask, meta: { method: 'rembg+roi+skin+fallback', maskedAreaPercent: percent }, roiRgba };
 }
 
 

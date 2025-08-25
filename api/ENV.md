@@ -14,3 +14,5 @@ Backend
 Frontend
 
 - NEXT_PUBLIC_API_URL: API base URL (default http://localhost:4000)
+
+

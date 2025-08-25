@@ -5,6 +5,7 @@ import { ImageAnnotatorClient } from "@google-cloud/vision";
 import fs from "node:fs";
 import path from "path";
 import pLimit from 'p-limit';
+
 import { z } from 'zod';
 
 // Server modules
@@ -56,7 +57,7 @@ initSentry();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 },
 });
 
 // Sources (env-gated external connectors)
@@ -161,10 +162,20 @@ async function handleAnalyze(req: Request & { file?: Express.Multer.File }, res:
       return res.status(400).json({ ok: false, error: "No image provided" });
     }
 
+    // Normalize input format (supports HEIC/HEIF → JPEG)
+    let stdBuffer: Buffer = imageBuffer;
+    try {
+      const sharpMod = (await import('sharp')).default;
+      stdBuffer = await sharpMod(imageBuffer).rotate().jpeg({ quality: 90 }).toBuffer();
+    } catch (e) {
+      // If sharp fails, proceed with original
+      stdBuffer = imageBuffer;
+    }
+
     // Vision API analysis
     const [labelResult, webResult] = await Promise.all([
-      visionClient.labelDetection({ image: { content: imageBuffer } }),
-      visionClient.webDetection({ image: { content: imageBuffer } }),
+      visionClient.labelDetection({ image: { content: stdBuffer } }),
+      visionClient.webDetection({ image: { content: stdBuffer } }),
     ]);
 
     const labels = (labelResult[0]?.labelAnnotations || [])
@@ -189,7 +200,7 @@ async function handleAnalyze(req: Request & { file?: Express.Multer.File }, res:
     const analysisMs = Date.now() - startTime;
 
     // New pipeline (fallback implementations)
-    const maskRes = await buildGarmentMask(imageBuffer);
+    const maskRes = await buildGarmentMask(stdBuffer);
     const maskId = requestId;
     try { storeMask(maskId, maskRes.width, maskRes.height, maskRes.mask); } catch {}
     // Normalize illumination on ROI and extract color from masked pixels

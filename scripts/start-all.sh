@@ -25,7 +25,7 @@ start_frontend() {
 
 # Function to start backend
 start_backend() {
-    echo "🔧 Starting Backend (Node.js) on port 5000..."
+    echo "🔧 Starting Backend (Node.js) on port 4000..."
     cd api
     npm start &
     BACKEND_PID=$!
@@ -42,8 +42,8 @@ else
     start_frontend
 fi
 
-if check_port 5000; then
-    echo "Backend already running on port 5000"
+if check_port 4000; then
+    echo "Backend already running on port 4000"
 else
     start_backend
 fi
@@ -63,8 +63,8 @@ else
     echo "❌ Frontend failed to start"
 fi
 
-if check_port 5000; then
-    echo "✅ Backend: http://localhost:5000"
+if check_port 4000; then
+    echo "✅ Backend: http://localhost:4000"
 else
     echo "❌ Backend failed to start"
 fi
