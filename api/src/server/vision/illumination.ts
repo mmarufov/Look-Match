@@ -26,7 +26,7 @@ export function normalizeIlluminationRGB(
   const mean = (rMean + gMean + bMean) / 3;
   // Use single brightness scale to preserve chroma; clamp to reduce whitening
   const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
-  const brightScale = clamp(mean ? 128 / mean : 1, 0.8, 1.2);
+  const brightScale = clamp(mean ? 128 / mean : 1, 0.8, 1.35);
   const out = new Uint8ClampedArray(data);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {

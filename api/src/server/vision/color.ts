@@ -179,13 +179,36 @@ function deltaE2000(a: { L: number; a: number; b: number }, b: { L: number; a: n
 }
 
 export function extractColorFromMask(roiRgba: Uint8ClampedArray, width: number, height: number, mask: Uint8Array): ExtractedColor {
-  // Sample LAB values from masked pixels with stride to cap work
+  // Erode mask by 1px (8-neighborhood) to avoid background/edge bleed into samples
+  const innerMask = new Uint8Array(mask.length);
+  const idx = (x: number, y: number) => y * width + x;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = idx(x, y);
+      if (mask[i] < 128) continue;
+      // 8-neighborhood check
+      if (
+        mask[idx(x - 1, y - 1)] >= 128 &&
+        mask[idx(x, y - 1)] >= 128 &&
+        mask[idx(x + 1, y - 1)] >= 128 &&
+        mask[idx(x - 1, y)] >= 128 &&
+        mask[idx(x + 1, y)] >= 128 &&
+        mask[idx(x - 1, y + 1)] >= 128 &&
+        mask[idx(x, y + 1)] >= 128 &&
+        mask[idx(x + 1, y + 1)] >= 128
+      ) {
+        innerMask[i] = 255;
+      }
+    }
+  }
+
+  // Sample LAB values from eroded mask with stride to cap work
   const labs: Array<{L:number;a:number;b:number;c:number}> = [];
-  const total = mask.length;
+  const total = innerMask.length;
   const targetSamples = 30000;
   const stride = Math.max(1, Math.floor(total / targetSamples));
   for (let i = 0; i < total; i += stride) {
-    if (mask[i] >= 128) {
+    if (innerMask[i] >= 128) {
       const p = i * 4;
       const lab = srgbToLab(roiRgba[p], roiRgba[p + 1], roiRgba[p + 2]);
       const c = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
@@ -208,13 +231,37 @@ export function extractColorFromMask(roiRgba: Uint8ClampedArray, width: number, 
   const Lp70 = quantile(Lsamples, 0.7);
   const Lp85 = quantile(Lsamples, 0.85);
   const Lp90 = quantile(Lsamples, 0.9);
+  const Lp95 = quantile(Lsamples, 0.95);
   const chromaMedian = quantile(csamples, 0.5);
   const highLFraction = Lsamples.filter(L => L >= 88).length / Lsamples.length;
   const lowLFraction = Lsamples.filter(L => L <= 18).length / Lsamples.length;
   const lowChromaFraction = csamples.filter(c => c < 6).length / csamples.length;
 
+  // Per-pixel bright neutral fraction (robust white detector under shadows)
+  const brightNeutralFraction = labs.filter(px => px.L >= 84 && px.c < 8).length / labs.length;
+  if (brightNeutralFraction >= 0.45 || (Lp95 >= 92 && (highLFraction >= 0.4 || Lp90 >= 88) && lowChromaFraction >= 0.5)) {
+    return { base: 'white', hex: '#FFFFFF', label: 'white', confidence: 0.98 };
+  }
+
+  // Quick white vote via CIEDE2000 to pure white in LAB
+  // Only apply if chroma is truly low; otherwise skip to chromatic mapping
+  const whiteLab = srgbToLab(255, 255, 255);
+  const grayLab = srgbToLab(128, 128, 128);
+  let whiteVotes = 0, highLCount = 0;
+  for (let i = 0; i < labs.length; i++) {
+    if (labs[i].L >= 80) {
+      highLCount++;
+      const dW = deltaE2000({ L: labs[i].L, a: labs[i].a, b: labs[i].b }, whiteLab);
+      const dG = deltaE2000({ L: labs[i].L, a: labs[i].a, b: labs[i].b }, grayLab);
+      if (dW < dG) whiteVotes++;
+    }
+  }
+  if (lowChromaFraction >= 0.6 && highLCount > 0 && (whiteVotes / highLCount) >= 0.65) {
+    return { base: 'white', hex: '#FFFFFF', label: 'white', confidence: 0.97 };
+  }
+
   // Strong neutral handling first
-  if (lowChromaFraction >= 0.7) {
+  if (lowChromaFraction >= 0.6) {
     if (highLFraction >= 0.5 || (Lp90 >= 90 && (Lmedian >= 84 || Lp70 >= 88))) {
       return { base: 'white', hex: '#FFFFFF', label: 'white', confidence: 0.97 };
     }
