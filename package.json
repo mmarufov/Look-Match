@@ -4,24 +4,16 @@
   "description": "Find the exact clothes from any photo using AI-powered image analysis",
   "private": true,
   "workspaces": [
-    "api",
-    "web"
+    "api"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
-    "dev:api": "cd api && npm run dev",
-    "dev:web": "cd web && npm run dev",
-    "build": "npm run build:api && npm run build:web",
-    "build:api": "cd api && npm run build",
-    "build:web": "cd web && npm run build",
-    "start": "concurrently \"npm run start:api\" \"npm run start:web:3001\"",
-    "start:api": "cd api && npm start",
-    "start:web": "cd web && npm start",
-    "start:web:3001": "cd web && PORT=3001 npm start",
-    "install:all": "npm install && cd api && npm install && cd ../web && npm install",
-    "clean": "rm -rf node_modules api/node_modules web/node_modules api/dist web/.next",
-    "lint": "cd web && npm run lint",
-    "test": "echo \"No tests specified yet\""
+    "dev": "cd api && npm run dev",
+    "build": "cd api && npm run build",
+    "start": "cd api && npm start",
+    "install:all": "npm install && cd api && npm install",
+    "clean": "rm -rf node_modules api/node_modules api/dist",
+    "test": "cd api && npm test",
+    "test:system": "node scripts/test-system.js"
   },
   "keywords": [
     "ai",
