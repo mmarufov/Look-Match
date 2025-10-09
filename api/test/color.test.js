@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { extractColorFallback, extractColorFromMask } = require('../dist/server/vision/color.js');
+const { extractColorFallback, extractColorFromMask } = require('../dist/features/analyze/Model/color.js');
 
 test('extractColorFallback identifies white for high luminance low chroma', () => {
   const width = 2, height = 2;
