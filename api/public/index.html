@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LookMatch - AI Clothing Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 20px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #999;
+            font-size: 0.9rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .preview-section {
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin: 20px 0;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-section {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: #f8f9ff;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            border-left: 5px solid #667eea;
+        }
+
+        .result-title {
+            font-size: 1.3rem;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .attributes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .attribute-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .attribute-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .attribute-value {
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        .description-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #764ba2;
+        }
+
+        .description-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #c62828;
+        }
+
+        .success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #2e7d32;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-card {
+                padding: 20px;
+            }
+            
+            .upload-area {
+                padding: 40px 15px;
+            }
+            
+            .attributes-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👗 LookMatch</h1>
+            <p>AI-Powered Clothing Detection & Style Analysis</p>
+        </div>
+
+        <div class="main-card">
+            <div class="upload-section">
+                <h2 style="margin-bottom: 20px; color: #333;">Upload Your Clothing Photo</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📸</div>
+                    <div class="upload-text">Click to upload or drag & drop</div>
+                    <div class="upload-subtext">Supports JPG, PNG, WEBP (Max 10MB)</div>
+                </div>
+                <input type="file" id="fileInput" class="file-input" accept="image/*">
+                <button class="btn" id="analyzeBtn" disabled>🔍 Analyze Clothing</button>
+                <button class="btn btn-secondary" id="clearBtn" style="display: none;">🗑️ Clear</button>
+            </div>
+
+            <div class="preview-section" id="previewSection" style="display: none;">
+                <img id="imagePreview" class="image-preview" alt="Preview">
+            </div>
+
+            <div class="loading" id="loadingSection">
+                <div class="spinner"></div>
+                <p>🤖 AI is analyzing your clothing...</p>
+                <small>This may take a few seconds</small>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <div class="result-card">
+                    <div class="result-title">🎯 Detected Attributes</div>
+                    <div class="attributes-grid" id="attributesGrid">
+                        <!-- Attributes will be populated here -->
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-title">✨ AI Description</div>
+                    <div class="description-box">
+                        <div class="description-text" id="descriptionText">
+                            <!-- Description will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-title">🔍 Search Query</div>
+                    <div class="description-box">
+                        <div class="description-text" id="searchQueryText">
+                            <!-- Search query will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const previewSection = document.getElementById('previewSection');
+        const imagePreview = document.getElementById('imagePreview');
+        const loadingSection = document.getElementById('loadingSection');
+        const resultsSection = document.getElementById('resultsSection');
+        const attributesGrid = document.getElementById('attributesGrid');
+        const descriptionText = document.getElementById('descriptionText');
+        const searchQueryText = document.getElementById('searchQueryText');
+
+        let selectedFile = null;
+
+        // Upload area click
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // File input change
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect({ target: { files: files } });
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedFile = file;
+                showImagePreview(file);
+                analyzeBtn.disabled = false;
+                clearBtn.style.display = 'inline-block';
+            } else {
+                showError('Please select a valid image file.');
+            }
+        }
+
+        function showImagePreview(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                previewSection.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Analyze button click
+        analyzeBtn.addEventListener('click', analyzeImage);
+
+        // Clear button click
+        clearBtn.addEventListener('click', clearAll);
+
+        function clearAll() {
+            selectedFile = null;
+            fileInput.value = '';
+            previewSection.style.display = 'none';
+            resultsSection.style.display = 'none';
+            analyzeBtn.disabled = true;
+            clearBtn.style.display = 'none';
+        }
+
+        async function analyzeImage() {
+            if (!selectedFile) return;
+
+            // Show loading
+            loadingSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            analyzeBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('image', selectedFile);
+
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.ok) {
+                    displayResults(result);
+                    showSuccess('Analysis completed successfully!');
+                } else {
+                    showError(result.error || 'Analysis failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Network error. Please check your connection and try again.');
+            } finally {
+                loadingSection.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function displayResults(result) {
+            // Display attributes
+            const attributes = [
+                { label: 'Category', value: result.attributes?.category || 'Unknown' },
+                { label: 'Colors', value: result.attributes?.colors?.join(', ') || 'Unknown' },
+                { label: 'Material', value: result.attributes?.material || 'Unknown' },
+                { label: 'Pattern', value: result.attributes?.pattern || 'Solid' },
+                { label: 'Gender', value: result.attributes?.gender || 'Unisex' },
+                { label: 'Confidence', value: `${Math.round((result.attributes?.confidence || 0) * 100)}%` }
+            ];
+
+            attributesGrid.innerHTML = attributes.map(attr => `
+                <div class="attribute-item">
+                    <div class="attribute-label">${attr.label}</div>
+                    <div class="attribute-value">${attr.value}</div>
+                </div>
+            `).join('');
+
+            // Display description
+            descriptionText.textContent = result.description || 'No description generated.';
+
+            // Display search query
+            searchQueryText.textContent = result.query || 'No search query generated.';
+
+            // Show results
+            resultsSection.style.display = 'block';
+        }
+
+        function showError(message) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.error, .success');
+            existingMessages.forEach(msg => msg.remove());
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            resultsSection.parentNode.insertBefore(errorDiv, resultsSection);
+        }
+
+        function showSuccess(message) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.error, .success');
+            existingMessages.forEach(msg => msg.remove());
+
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            resultsSection.parentNode.insertBefore(successDiv, resultsSection);
+        }
+    </script>
+</body>
+</html>
