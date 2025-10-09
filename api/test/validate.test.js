@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const validateMod = require('../dist/server/urls/validate.js');
+const validateMod = require('../dist/features/matches/Model/validate.js');
 
 const { validateProductUrls } = validateMod;
 

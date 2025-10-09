@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { normalizeVisionAttributes } = require('../dist/server/vision/normalize.js');
+const { normalizeVisionAttributes } = require('../dist/features/analyze/Model/normalize.js');
 
 function mkLabel(desc, score = 0.9) { return { description: desc, score }; }
 
