@@ -1,41 +1,24 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
-import multer from "multer";
 import { ImageAnnotatorClient } from "@google-cloud/vision";
 import fs from "node:fs";
 import path from "path";
 import pLimit from 'p-limit';
-
 import { z } from 'zod';
-
-// Server modules
-import { normalizeVisionAttributes } from './server/vision/normalize';
-import { generateProductDescription } from './server/describe/describe';
-import { buildSearchQuery } from './server/search/buildQuery';
-import { validateProductUrls } from './server/urls/validate';
-import { rankResults, calculateMetrics } from './server/rank/score';
-import { searchCache } from './server/cache/lru';
-import { createCacheAdapter } from './server/cache/redis';
-import { initSentry, captureException, withSentryBreadcrumb } from './server/telemetry/sentry';
-import { mockSources } from './server/sources/mock';
-import { SerpAPISource } from './server/sources/serp';
-import { eBaySource } from './server/sources/ebay';
-import { BingSource } from './server/sources/bing';
-import { AliExpressSource } from './server/sources/aliexpress';
-import { buildGarmentMask } from './server/vision/garmentMask';
-import { normalizeIlluminationRGB } from './server/vision/illumination';
-import { extractColorFromMask } from './server/vision/color';
-import { inferStyleFallback } from './server/vision/style';
-import { createDebugMaskRouter, storeMask } from './server/routes/debugMask';
-
-// Types
+import { createAnalyzeRouter } from './features/analyze/View/analyzeRouter';
+import { createDebugMaskRouter } from './features/debug-mask/View/router';
+import { createMatchesRouter } from './features/matches/View/router';
+import { validateProductUrls } from './features/matches/Model/validate';
+import { rankResults, calculateMetrics } from './features/matches/Model/rank';
+import { searchCache } from './core/cache/Model/lru';
+import { createCacheAdapter } from './core/cache/Model/redis';
+import { mockSources, SerpAPISource, eBaySource, BingSource, AliExpressSource } from './features/matches/Model/sources';
 import { 
-  AnalyzeResponse, 
   MatchesResponse, 
-  VisionAttributes, 
   SourceResult,
   Source 
 } from './shared/types';
+import { createHealthRouter } from './features/health/View/router';
 
 // Resolve credentials: env var or ./google-credentials.json in project root
 const keyPath =
@@ -50,15 +33,10 @@ const visionClient = hasKeyFile
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "10mb" }));
+app.use(express.static(path.join(__dirname, '../public')));
 app.use(createDebugMaskRouter());
 
 // Init telemetry (no-op if not configured)
-initSentry();
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
-});
 
 // Sources (env-gated external connectors)
 const sources: Source[] = [
@@ -68,6 +46,29 @@ const sources: Source[] = [
   new BingSource(),
   new AliExpressSource()
 ];
+
+// Root route - API info page
+app.get('/', (req, res) => {
+  res.json({
+    service: 'LookMatch API',
+    version: '1.0.0',
+    description: 'AI-powered clothing detection and product matching',
+    endpoints: {
+      health: '/health',
+      analyze: '/analyze (POST with image)',
+      matches: '/api/matches?query=...',
+      debug: '/api/debug-mask/:id'
+    },
+    documentation: 'https://github.com/your-repo/lookmatch-api',
+    status: 'live'
+  });
+});
+
+// Feature routers
+app.use(createAnalyzeRouter(visionClient));
+app.use(createMatchesRouter());
+app.use(createDebugMaskRouter());
+app.use(createHealthRouter(sources));
 
 // Concurrency limiter for source searches
 const searchLimiter = pLimit(4);
@@ -114,149 +115,9 @@ const matchesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
-app.get("/health", (_req: Request, res: Response) => {
-  res.json({
-    ok: true,
-    service: "lookmatch-api",
-    creds: hasKeyFile ? "file" : process.env.GOOGLE_APPLICATION_CREDENTIALS ? "env" : "none",
-    sources: sources.map(s => ({ name: s.name, enabled: true })),
-    cache: searchCache.getStats(),
-    metrics: {
-      requestsAnalyze: metrics.requestsAnalyze,
-      requestsMatches: metrics.requestsMatches,
-      verifiedRate: metrics.matchesTotal ? metrics.matchesVerified / metrics.matchesTotal : null,
-      lastSearchLatencyMs: metrics.lastSearchLatencyMs,
-    },
-  });
-});
+// Health route handled by MVVM router
 
-// Analyze: JSON { imageUrl } or multipart form-data (image)
-async function handleAnalyze(req: Request & { file?: Express.Multer.File }, res: Response) {
-  const startTime = Date.now();
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  metrics.requestsAnalyze += 1;
-
-  try {
-    // Prefer JSON { imageUrl }
-    let imageBuffer: Buffer | null = null;
-    if (req.is('application/json')) {
-      const parsed = analyzeBodySchema.safeParse(req.body);
-      if (!parsed.success) {
-        const issue = parsed.error.issues?.[0];
-        return res.status(400).json({ ok: false, error: issue?.message || 'Invalid body' });
-      }
-      if (parsed.data.imageUrl) {
-        const response = await fetch(parsed.data.imageUrl);
-        if (!response.ok) throw new Error(`Failed to fetch imageUrl: ${response.status}`);
-        const arrayBuf = await response.arrayBuffer();
-        imageBuffer = Buffer.from(arrayBuf);
-      }
-    }
-
-    // Fallback to multipart
-    if (!imageBuffer && req.file) {
-      imageBuffer = req.file.buffer;
-    }
-
-    if (!imageBuffer) {
-      return res.status(400).json({ ok: false, error: "No image provided" });
-    }
-
-    // Normalize input format (supports HEIC/HEIF → JPEG)
-    let stdBuffer: Buffer = imageBuffer;
-    try {
-      const sharpMod = (await import('sharp')).default;
-      stdBuffer = await sharpMod(imageBuffer).rotate().jpeg({ quality: 90 }).toBuffer();
-    } catch (e) {
-      // If sharp fails, proceed with original
-      stdBuffer = imageBuffer;
-    }
-
-    // Vision API analysis
-    const [labelResult, webResult] = await Promise.all([
-      visionClient.labelDetection({ image: { content: stdBuffer } }),
-      visionClient.webDetection({ image: { content: stdBuffer } }),
-    ]);
-
-    const labels = (labelResult[0]?.labelAnnotations || [])
-      .map((l: any) => ({ description: l.description, score: l.score }))
-      .filter((l: any) => !!l.description)
-      .slice(0, 10);
-
-    const webTags = [
-      ...(webResult[0]?.webDetection?.bestGuessLabels || []).map((x: any) => x.label),
-      ...(webResult[0]?.webDetection?.webEntities || [])
-        .filter((entity: any) => entity.score && entity.score > 0.7)
-        .map((entity: any) => entity.description)
-        .slice(0, 5),
-    ].filter(Boolean);
-
-    // Extract basic colors from text context (simple heuristic)
-    const colors = extractColorsFromText([...webTags, ...labels.map(l => l.description)]);
-
-    // Normalize → attributes
-    const attributes = normalizeVisionAttributes(labels, webTags, colors);
-    const { description, query } = generateProductDescription(attributes);
-    const analysisMs = Date.now() - startTime;
-
-    // New pipeline (fallback implementations)
-    const maskRes = await buildGarmentMask(stdBuffer);
-    const maskId = requestId;
-    try { storeMask(maskId, maskRes.width, maskRes.height, maskRes.mask); } catch {}
-    // Normalize illumination on ROI and extract color from masked pixels
-    const normalized = normalizeIlluminationRGB(maskRes.roiRgba, maskRes.width, maskRes.height, maskRes.mask);
-    const color = extractColorFromMask(normalized, maskRes.width, maskRes.height, maskRes.mask);
-    const style = inferStyleFallback(labels, maskRes.mask);
-
-    const response: AnalyzeResponse = {
-      ok: true,
-      attributes,
-      description,
-      query,
-    } as any;
-
-    // Back-compat fields for existing frontend
-    return res.json({
-      ...response,
-      labels,
-      webTags,
-      colors,
-      clothingInfo: { type: attributes.category, confidence: attributes.confidence },
-      analysis: {
-        dominantColor: colors[0]?.name || 'Unknown',
-        clothingType: attributes.category || 'Clothing',
-        confidence: attributes.confidence || 0,
-        analysisMs,
-        requestId,
-      },
-      // New fields
-      color,
-      category: style.category,
-      sleeveLength: style.sleeveLength,
-      hasCollar: style.hasCollar,
-      pattern: style.pattern,
-      confidences: style.confidences,
-      debug: { maskId },
-    });
-  } catch (err: any) {
-    console.error(`[${requestId}] Analyze error:`, err);
-    captureException(err, { requestId, route: 'analyze' });
-    const response: AnalyzeResponse = {
-      ok: false,
-      attributes: { category: 'clothing', colors: [], brandHints: [], confidence: 0 },
-      description: 'Analysis failed',
-      query: '',
-      error: err.message || 'Analyze error',
-    } as any;
-    return res.status(500).json(response);
-  }
-}
-
-// JSON route
-app.post('/api/analyze', express.json(), handleAnalyze);
-// Multipart route (legacy and /api)
-app.post('/api/analyze-upload', upload.single('image'), handleAnalyze);
-app.post('/analyze', upload.single('image'), handleAnalyze);
+// Analyze routes handled via feature router
 
 // Matches endpoint
 app.get("/api/matches", async (req: Request, res: Response) => {
@@ -273,8 +134,8 @@ app.get("/api/matches", async (req: Request, res: Response) => {
     const { query, limit = 20 } = parsed.data;
 
     // Cache (Redis adapter if available)
-    const cache = await createCacheAdapter<{ results: SourceResult[]; total: number; verifiedCount: number }>();
-    const cached = await cache.get(query);
+    const cache = createCacheAdapter();
+    const cached = cache ? await cache.get(query) : null;
     if (cached) {
       const response: MatchesResponse = {
         ok: true,
@@ -288,13 +149,10 @@ app.get("/api/matches", async (req: Request, res: Response) => {
     // Search all sources
     const searchPromises = sources.map(source =>
       searchLimiter(
-        withSentryBreadcrumb(
-          () => source.search(query, {
-            limit: Math.ceil(limit / sources.length),
-            timeoutMs: 10000,
-          }),
-          { category: 'source', message: 'search', data: { source: source.name, query } }
-        )
+        () => source.search(query, {
+          limit: Math.ceil(limit / sources.length),
+          timeoutMs: 10000,
+        })
       )
     );
 
@@ -339,11 +197,13 @@ app.get("/api/matches", async (req: Request, res: Response) => {
     metrics.matchesTotal += m.totalResults;
     metrics.lastSearchLatencyMs = Date.now() - startTime;
 
-    await cache.set(query, {
-      results: finalResults,
-      total: m.totalResults,
-      verifiedCount: m.verifiedCount,
-    }, 60 * 60 * 1000);
+    if (cache) {
+      await cache.set(query, {
+        results: finalResults,
+        total: m.totalResults,
+        verifiedCount: m.verifiedCount,
+      }, 60 * 60 * 1000);
+    }
 
     const response: MatchesResponse = {
       ok: true,
@@ -354,7 +214,7 @@ app.get("/api/matches", async (req: Request, res: Response) => {
     return res.json(response);
   } catch (err: any) {
     console.error(`[${requestId}] Matches error:`, err);
-    captureException(err, { requestId, route: 'matches', query: (req.query?.query as string) || '' });
+    console.error('Error details:', { requestId, route: 'matches', query: (req.query?.query as string) || '' });
     const response: MatchesResponse = { ok: false, results: [], total: 0, verifiedCount: 0, error: err.message || 'Search error' } as any;
     return res.status(500).json(response);
   }
@@ -399,8 +259,8 @@ function extractColorsFromText(texts: string[]): Array<{name: string; score: num
     .slice(0, 5);
 }
 
-const port = process.env.PORT || 4000;
-app.listen(port, () => {
+const port = parseInt(process.env.PORT || '4000', 10);
+app.listen(port, '0.0.0.0', () => {
   console.log(`LookMatch API Server listening on http://localhost:${port}`);
   if (!hasKeyFile && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     console.warn("⚠️  No Google credentials found. Set GOOGLE_APPLICATION_CREDENTIALS or place google-credentials.json in the API root.");
