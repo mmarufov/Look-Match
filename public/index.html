@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LookMatch — Visual AI for Fashion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-0: #0a0b10;
+            --bg-1: #0f1117;
+            --bg-2: rgba(255,255,255,0.06);
+            --card-border: rgba(255,255,255,0.12);
+            --inner-border: rgba(255,255,255,0.06);
+            --fg: #e6e7eb;
+            --fg-muted: #b7bcc6;
+            --accent: #7aa2ff;
+            --accent-2: #a077ff;
+            --shadow: 0 10px 40px rgba(0,0,0,0.55);
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg-0: #f6f7fb;
+                --bg-1: #ffffff;
+                --bg-2: rgba(10,12,16,0.04);
+                --card-border: rgba(10,12,16,0.08);
+                --inner-border: rgba(10,12,16,0.06);
+                --fg: #0b0d12;
+                --fg-muted: #5c6370;
+                --accent: #2563eb;
+                --accent-2: #7c3aed;
+                --shadow: 0 12px 36px rgba(9,11,15,0.08);
+            }
+        }
+
+        body {
+            font-family: -apple-system, system-ui, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            background:
+                radial-gradient(1200px 600px at 10% -10%, rgba(122,162,255,0.12), transparent 60%),
+                radial-gradient(900px 500px at 100% 0%, rgba(160,119,255,0.12), transparent 60%),
+                linear-gradient(180deg, var(--bg-1), var(--bg-0));
+            color: var(--fg);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .header h1 {
+            font-weight: 700;
+            font-size: 3.2rem;
+            letter-spacing: -0.02em;
+            line-height: 1.05;
+            background: linear-gradient(90deg, #ffffff, #b7c2ff 40%, #d9c7ff 80%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: var(--fg-muted);
+        }
+
+        .main-card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .main-card + .main-card { margin-top: 24px; }
+
+        .main-card:before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 24px;
+            padding: 1px;
+            background: linear-gradient(120deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04));
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+        }
+
+        .upload-section { text-align: center; margin-bottom: 24px; }
+
+        .upload-area {
+            border-radius: 20px;
+            padding: 56px 20px;
+            margin: 18px 0 8px;
+            cursor: pointer;
+            transition: transform 240ms ease, box-shadow 240ms ease, background 240ms ease, border-color 240ms ease;
+            background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+            border: 1px dashed var(--inner-border);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .upload-area:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 6px 24px rgba(0,0,0,0.25); }
+        .upload-area.dragover { border-color: rgba(122,162,255,0.55); background: rgba(122,162,255,0.06); }
+
+        .upload-icon { font-size: 3rem; color: var(--fg); opacity: 0.9; margin-bottom: 14px; }
+        .upload-text { font-size: 1.05rem; color: var(--fg); opacity: 0.9; margin-bottom: 6px; }
+        .upload-subtext { color: var(--fg-muted); font-size: 0.9rem; }
+
+        .file-input { display: none; }
+
+        .btn {
+            background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06));
+            color: var(--fg);
+            border: 1px solid var(--card-border);
+            padding: 14px 24px;
+            border-radius: 999px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease, opacity 180ms ease;
+            margin: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+            backdrop-filter: saturate(120%) blur(6px);
+        }
+
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,0.32); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn.btn-primary {
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            color: #fff;
+            border: none;
+            box-shadow: 0 10px 28px rgba(122,162,255,0.35);
+        }
+
+        .btn.btn-secondary {
+            background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+            color: var(--fg);
+        }
+
+        .preview-section { margin: 26px 0; text-align: center; }
+        .image-preview {
+            max-width: 100%;
+            max-height: 420px;
+            border-radius: 18px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+        }
+
+        .loading { display: none; text-align: center; margin: 28px 0; color: var(--fg-muted); }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.12);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            width: 48px; height: 48px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 14px;
+        }
+        @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+
+        .results-section { display: none; margin-top: 26px; }
+        .result-card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 22px;
+            margin: 18px 0;
+        }
+        .result-title { font-size: 1.1rem; color: var(--fg); opacity: 0.9; margin-bottom: 12px; font-weight: 600; }
+
+        .attributes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 16px 0; }
+        .attribute-item {
+            background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+            border: 1px solid var(--inner-border);
+            padding: 14px;
+            border-radius: 12px;
+            text-align: left;
+        }
+        .attribute-label { font-weight: 600; color: var(--fg); opacity: 0.9; margin-bottom: 4px; }
+        .attribute-value { color: var(--fg-muted); font-size: 0.95rem; }
+
+        .description-box {
+            background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+            border: 1px solid var(--inner-border);
+            padding: 18px;
+            border-radius: 12px;
+        }
+        .description-text { font-size: 1.05rem; line-height: 1.6; color: var(--fg); opacity: 0.9; }
+
+        .error, .success {
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin: 18px 0;
+            border: 1px solid var(--inner-border);
+            background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+        }
+        .error { color: #ff6b6b; border-left: 4px solid #ff6b6b; }
+        .success { color: #44d19a; border-left: 4px solid #44d19a; }
+
+        .footer-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+        .tool-card { background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px; }
+        .tool-title { font-weight: 600; color: var(--fg); opacity: 0.9; margin-bottom: 8px; }
+        .small { font-size: 0.92rem; color: var(--fg-muted); }
+
+        input#maskIdInput {
+            background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05));
+            color: var(--fg);
+            border: 1px solid var(--inner-border);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 { font-size: 2.2rem; }
+            .main-card { padding: 22px; }
+            .upload-area { padding: 40px 16px; }
+            .attributes-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LookMatch</h1>
+            <p>Detect garments. Describe styles. Find matches.</p>
+        </div>
+
+        <div class="main-card">
+            <div class="upload-section">
+                <h2 style="margin-bottom: 20px; color: #333;">Upload Your Clothing Photo</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📸</div>
+                    <div class="upload-text">Click to upload or drag & drop</div>
+                    <div class="upload-subtext">Supports JPG, PNG, WEBP (Max 10MB)</div>
+                </div>
+                <input type="file" id="fileInput" class="file-input" accept="image/*">
+                <button class="btn btn-primary" id="analyzeBtn" disabled>Analyze</button>
+                <button class="btn btn-secondary" id="clearBtn" style="display: none;">Clear</button>
+            </div>
+
+            <div class="preview-section" id="previewSection" style="display: none;">
+                <img id="imagePreview" class="image-preview" alt="Preview">
+            </div>
+
+            <div class="loading" id="loadingSection">
+                <div class="spinner"></div>
+                <p>🤖 AI is analyzing your clothing...</p>
+                <small>This may take a few seconds</small>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <div class="result-card">
+                    <div class="result-title">🎯 Detected Attributes</div>
+                    <div class="attributes-grid" id="attributesGrid">
+                        <!-- Attributes will be populated here -->
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-title">✨ AI Description</div>
+                    <div class="description-box">
+                        <div class="description-text" id="descriptionText">
+                            <!-- Description will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-title">🔍 Search Query</div>
+                    <div class="description-box">
+                        <div class="description-text" id="searchQueryText">
+                            <!-- Search query will be populated here -->
+                        </div>
+                        <div style="margin-top:12px;text-align:right;">
+                          <button class="btn" id="findMatchesBtn">Find Matches</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="result-card" id="matchesCard" style="display:none;">
+                    <div class="result-title">🛍️ Matches</div>
+                    <div id="matchesGrid" class="attributes-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-card">
+            <div class="result-title">🧰 Tools</div>
+            <div class="footer-tools">
+                <div class="tool-card">
+                    <div class="tool-title">API Health</div>
+                    <button class="btn" id="checkHealthBtn">Check Health</button>
+                    <pre id="healthOutput" class="small" style="white-space:pre-wrap;margin-top:10px;display:none;"></pre>
+                </div>
+                <div class="tool-card">
+                    <div class="tool-title">Debug Mask</div>
+                    <div class="small">Last request mask visualization</div>
+                    <div style="display:flex; gap:8px; margin-top:10px;">
+                        <input id="maskIdInput" placeholder="Enter mask id" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;"/>
+                        <button class="btn" id="viewMaskBtn" style="padding:10px 16px;">View</button>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <img id="maskPreview" style="max-width:100%;border-radius:8px;display:none;"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const previewSection = document.getElementById('previewSection');
+        const imagePreview = document.getElementById('imagePreview');
+        const loadingSection = document.getElementById('loadingSection');
+        const resultsSection = document.getElementById('resultsSection');
+        const attributesGrid = document.getElementById('attributesGrid');
+        const descriptionText = document.getElementById('descriptionText');
+        const searchQueryText = document.getElementById('searchQueryText');
+        const findMatchesBtn = document.getElementById('findMatchesBtn');
+        const matchesGrid = document.getElementById('matchesGrid');
+        const matchesCard = document.getElementById('matchesCard');
+        const checkHealthBtn = document.getElementById('checkHealthBtn');
+        const healthOutput = document.getElementById('healthOutput');
+        const maskIdInput = document.getElementById('maskIdInput');
+        const viewMaskBtn = document.getElementById('viewMaskBtn');
+        const maskPreview = document.getElementById('maskPreview');
+
+        let selectedFile = null;
+
+        // Upload area click
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // File input change
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect({ target: { files: files } });
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedFile = file;
+                showImagePreview(file);
+                analyzeBtn.disabled = false;
+                clearBtn.style.display = 'inline-block';
+            } else {
+                showError('Please select a valid image file.');
+            }
+        }
+
+        function showImagePreview(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                previewSection.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Analyze button click
+        analyzeBtn.addEventListener('click', analyzeImage);
+
+        // Clear button click
+        clearBtn.addEventListener('click', clearAll);
+
+        // Find matches click
+        if (findMatchesBtn) findMatchesBtn.addEventListener('click', findMatches);
+        if (checkHealthBtn) checkHealthBtn.addEventListener('click', checkHealth);
+        if (viewMaskBtn) viewMaskBtn.addEventListener('click', viewMask);
+
+        function clearAll() {
+            selectedFile = null;
+            fileInput.value = '';
+            previewSection.style.display = 'none';
+            resultsSection.style.display = 'none';
+            analyzeBtn.disabled = true;
+            clearBtn.style.display = 'none';
+        }
+
+        async function analyzeImage() {
+            if (!selectedFile) return;
+
+            // Show loading
+            loadingSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            analyzeBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('image', selectedFile);
+
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.ok) {
+                    displayResults(result);
+                    showSuccess('Analysis completed successfully!');
+                } else {
+                    showError(result.error || 'Analysis failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Network error. Please check your connection and try again.');
+            } finally {
+                loadingSection.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function displayResults(result) {
+            // Display attributes
+            const attributes = [
+                { label: 'Category', value: result.attributes?.category || 'Unknown' },
+                { label: 'Colors', value: result.attributes?.colors?.join(', ') || 'Unknown' },
+                { label: 'Material', value: result.attributes?.material || 'Unknown' },
+                { label: 'Pattern', value: result.attributes?.pattern || 'Solid' },
+                { label: 'Gender', value: result.attributes?.gender || 'Unisex' },
+                { label: 'Confidence', value: `${Math.round((result.attributes?.confidence || 0) * 100)}%` }
+            ];
+
+            attributesGrid.innerHTML = attributes.map(attr => `
+                <div class="attribute-item">
+                    <div class="attribute-label">${attr.label}</div>
+                    <div class="attribute-value">${attr.value}</div>
+                </div>
+            `).join('');
+
+            // Display description
+            descriptionText.textContent = result.description || 'No description generated.';
+
+            // Display search query
+            searchQueryText.textContent = result.query || 'No search query generated.';
+
+            // Show results
+            resultsSection.style.display = 'block';
+            matchesCard.style.display = 'none';
+            // try to set mask id field from response.debug.maskId
+            try { if (result?.debug?.maskId && maskIdInput) maskIdInput.value = result.debug.maskId; } catch {}
+        }
+
+        function showError(message) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.error, .success');
+            existingMessages.forEach(msg => msg.remove());
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            resultsSection.parentNode.insertBefore(errorDiv, resultsSection);
+        }
+
+        function showSuccess(message) {
+            // Remove existing messages
+            const existingMessages = document.querySelectorAll('.error, .success');
+            existingMessages.forEach(msg => msg.remove());
+
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            resultsSection.parentNode.insertBefore(successDiv, resultsSection);
+        }
+
+        async function findMatches() {
+            const query = (searchQueryText.textContent || '').trim();
+            if (!query) { showError('No search query to find matches.'); return; }
+            try {
+                loadingSection.style.display = 'block';
+                matchesGrid.innerHTML = '';
+                matchesCard.style.display = 'none';
+                const url = `/api/matches?query=${encodeURIComponent(query)}&limit=24`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (!data.ok) { showError(data.error || 'Failed to fetch matches'); return; }
+                if (!Array.isArray(data.results) || data.results.length === 0) {
+                    matchesGrid.innerHTML = '<div class="attribute-item">No matches found</div>';
+                } else {
+                    matchesGrid.innerHTML = data.results.map((r) => `
+                        <div class="attribute-item" style="text-align:left;">
+                          <div style="display:flex; gap:12px; align-items:center;">
+                            ${r.thumbnail ? `<img src="${r.thumbnail}" alt="thumb" style="width:64px;height:64px;object-fit:cover;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,0.1);"/>` : ''}
+                            <div>
+                              <div class="attribute-label" title="${r.merchant || ''}">${(r.merchant || r.source || '').toString().slice(0, 24)}</div>
+                              <div class="attribute-value" style="font-weight:600;">${(r.title || 'Product').toString().slice(0, 80)}</div>
+                              <div class="attribute-value" style="margin-top:6px;">
+                                ${r.price && r.price.amount ? `$${Number(r.price.amount).toFixed(2)}` : ''}
+                                ${r.verified ? ' • ✅ verified' : ''}
+                              </div>
+                              <div style="margin-top:8px;">
+                                <a href="${r.url}" target="_blank" rel="noopener" class="btn" style="padding:8px 16px;font-size:0.95rem;">View</a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                    `).join('');
+                }
+                matchesCard.style.display = 'block';
+            } catch (e) {
+                console.error(e);
+                showError('Failed to fetch matches.');
+            } finally {
+                loadingSection.style.display = 'none';
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                healthOutput.style.display = 'none';
+                loadingSection.style.display = 'block';
+                const res = await fetch('/health');
+                const data = await res.json();
+                healthOutput.textContent = JSON.stringify(data, null, 2);
+                healthOutput.style.display = 'block';
+            } catch (e) {
+                showError('Health check failed');
+            } finally {
+                loadingSection.style.display = 'none';
+            }
+        }
+
+        async function viewMask() {
+            const id = (maskIdInput && maskIdInput.value || '').trim();
+            if (!id) { showError('Enter a mask id'); return; }
+            const url = `/api/debug-mask/${encodeURIComponent(id)}`;
+            maskPreview.src = url;
+            maskPreview.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
